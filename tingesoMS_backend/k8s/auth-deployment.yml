@@ -1,8 +1,4 @@
 apiVersion: apps/v1
-kind: Secret
-# Este recurso ya existe en mysql-secrets.yml, solo asegúrate de tener las llaves user_auth y pass_auth.
----
-apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tingeso-auth
