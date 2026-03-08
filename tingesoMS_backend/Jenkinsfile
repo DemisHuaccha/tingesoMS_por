@@ -35,16 +35,21 @@ pipeline {
         stage('Cleanup Old Apps') {
             steps {
                 script {
-                    echo "--- Limpiando versiones anteriores (Heurística 5) ---"
-                    def appsToClean = [
-                        'config-service', 'gateway-service', 'tingeso-auth',
-                        'tingeso-income', 'tingeso-expense', 'tingeso-report'
-                    ]
+                    echo "--- LIMPIEZA PROFUNDA AUTOMATIZADA (Heurística 5) ---"
 
-                    appsToClean.each { name ->
-                        bat "kubectl delete deployment ${name} --ignore-not-found=true"
-                        bat "kubectl delete service ${name}-service --ignore-not-found=true"
+                    // 1. Borramos los despliegues y servicios
+                    def apps = ['config-service', 'gateway-service', 'tingeso-auth', 'tingeso-income', 'tingeso-expense', 'tingeso-report', 'mysql-db']
+                    apps.each { name ->
+                        bat "kubectl --kubeconfig=%KUBECONFIG% delete deployment ${name} --ignore-not-found=true"
+                        bat "kubectl --kubeconfig=%KUBECONFIG% delete service ${name}-service --ignore-not-found=true"
                     }
+
+                    // 2. CORRECCIÓN CRÍTICA: Borrar el PVC para liberar el candado de InnoDB
+                    echo "Liberando volúmenes persistentes para evitar errores de bloqueo..."
+                    bat "kubectl --kubeconfig=%KUBECONFIG% delete pvc mysql-pvc --ignore-not-found=true"
+
+                    // 3. Limpiar ConfigMaps viejos
+                    bat "kubectl --kubeconfig=%KUBECONFIG% delete configmap config-repo --ignore-not-found=true"
                 }
             }
         }
@@ -52,16 +57,15 @@ pipeline {
         stage('Deploy Infrastructure') {
             steps {
                 script {
-                    echo "--- Refrescando ConfigMap de Propiedades ---"
-                    bat "kubectl --kubeconfig=%KUBECONFIG% delete configmap config-repo --ignore-not-found"
-                    bat "kubectl --kubeconfig=%KUBECONFIG% create configmap config-repo --from-file=%BASE_DIR%/config-data"
-
-                    echo "--- Sincronizando MySQL ---"
+                    echo "--- Recreando Infraestructura desde Cero ---"
+                    // Al aplicar el PV y PVC de nuevo, Kubernetes entrega un volumen limpio (o refrescado)
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-pv.yml"
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-secrets.yml"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% create configmap config-repo --from-file=%BASE_DIR%/config-data"
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-init-script.yml"
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-deployment.yml"
 
+                    echo "Esperando a que MySQL genere las nuevas bases de datos..."
                     bat "kubectl --kubeconfig=%KUBECONFIG% wait --for=condition=ready pod -l app=mysql-db --timeout=120s"
                 }
             }
