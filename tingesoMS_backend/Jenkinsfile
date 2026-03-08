@@ -4,7 +4,8 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'demishuaccha'
         DOCKER_CREDENTIAL_ID = 'dockerhub-creds'
-        BASE_DIR = 'tingesoMS_por' // Nombre del repo actualizado
+        // CORRECCIÓN: Apuntamos a la subcarpeta real del repositorio
+        BASE_DIR = 'tingesoMS_backend'
         KUBECONFIG = 'C:/Users/demis/.kube/config'
     }
 
@@ -21,11 +22,9 @@ pipeline {
 
         stage('Build and Push Microservices') {
             parallel {
-                // Infraestructura Core
+                // Solo los servicios necesarios para Caja Chica (Sin Eureka)
                 stage('Config Service') { steps { buildAndPush('config-service', 'config-service') } }
                 stage('Gateway Service') { steps { buildAndPush('gateway-service', 'gateway-service') } }
-
-                // Microservicios de Negocio (Caja Chica)
                 stage('Auth Service') { steps { buildAndPush('tingesoMS_auth', 'tingeso-auth-service') } }
                 stage('Income Service') { steps { buildAndPush('tingesoMS_income', 'tingeso-income-service') } }
                 stage('Expense Service') { steps { buildAndPush('tingesoMS_expense', 'tingeso-expense-service') } }
@@ -36,8 +35,7 @@ pipeline {
         stage('Cleanup Old Apps') {
             steps {
                 script {
-                    echo "--- Limpiando despliegues previos (Sin afectar DBs) ---"
-                    // Lista ajustada a tus servicios actuales
+                    echo "--- Limpiando versiones anteriores (Heurística 5) ---"
                     def appsToClean = [
                         'config-service', 'gateway-service', 'tingeso-auth',
                         'tingeso-income', 'tingeso-expense', 'tingeso-report'
@@ -54,13 +52,13 @@ pipeline {
         stage('Deploy Infrastructure') {
             steps {
                 script {
-                    echo "--- Sincronizando MySQL y Persistencia ---"
+                    echo "--- Sincronizando MySQL y Volúmenes ---"
+                    // Usamos la ruta corregida para encontrar la carpeta k8s
                     bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-pv.yml"
                     bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-secrets.yml"
-                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-init-script.yml" // ¡Importante para las DBs!
+                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-init-script.yml"
                     bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-deployment.yml"
 
-                    echo "Esperando a que MySQL esté listo..."
                     bat "kubectl wait --for=condition=ready pod -l app=mysql-db --timeout=120s"
                 }
             }
@@ -69,7 +67,7 @@ pipeline {
         stage('Deploy Core Services') {
             steps {
                 script {
-                    echo "--- Levantando Config Server (Sin Eureka) ---"
+                    echo "--- Levantando Config Server ---"
                     bat "kubectl apply -f ${env.BASE_DIR}/k8s/config-deployment.yml"
                     bat "kubectl wait --for=condition=ready pod -l app=config-service --timeout=120s"
                 }
@@ -79,8 +77,8 @@ pipeline {
         stage('Deploy Business Services') {
             steps {
                 script {
-                    echo "--- Desplegando Microservicios de Negocio ---"
-                    // Despliegue secuencial de los archivos en la carpeta k8s
+                    echo "--- Desplegando Lógica de Negocio ---"
+                    // Despliegue en orden de los manifiestos en k8s/
                     def serviceFiles = ['auth', 'income', 'expense', 'report', 'gateway']
                     serviceFiles.each { file ->
                         bat "kubectl apply -f ${env.BASE_DIR}/k8s/${file}-deployment.yml"
@@ -95,7 +93,7 @@ pipeline {
             script { bat 'docker logout' }
         }
         success {
-            echo "¡Pipeline exitoso! Sistema de Caja Chica desplegado en Minikube."
+            echo "¡Pipeline exitoso! Todo desplegado en la ruta correcta."
         }
     }
 }
@@ -103,6 +101,7 @@ pipeline {
 def buildAndPush(folderName, imageName) {
     script {
         def fullName = "${env.DOCKER_HUB_REPO}/${imageName}:latest"
+        // La ruta ahora será: tingesoMS_backend/carpeta_microservicio
         def fullPath = "${env.BASE_DIR}/${folderName}"
         dir(fullPath) {
             bat "mvn clean package -DskipTests"
