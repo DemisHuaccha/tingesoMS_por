@@ -52,14 +52,17 @@ pipeline {
         stage('Deploy Infrastructure') {
             steps {
                 script {
-                    echo "--- Sincronizando MySQL y Volúmenes ---"
-                    // Usamos la ruta corregida para encontrar la carpeta k8s
-                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-pv.yml"
-                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-secrets.yml"
-                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-init-script.yml"
-                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-deployment.yml"
+                    echo "--- Refrescando ConfigMap de Propiedades ---"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% delete configmap config-repo --ignore-not-found"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% create configmap config-repo --from-file=%BASE_DIR%/config-data"
 
-                    bat "kubectl wait --for=condition=ready pod -l app=mysql-db --timeout=120s"
+                    echo "--- Sincronizando MySQL ---"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-pv.yml"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-secrets.yml"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-init-script.yml"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-deployment.yml"
+
+                    bat "kubectl --kubeconfig=%KUBECONFIG% wait --for=condition=ready pod -l app=mysql-db --timeout=120s"
                 }
             }
         }
