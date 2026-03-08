@@ -1,0 +1,5 @@
+com\tingeso\tingesoMS_income\Controller\IncomeController.class
+com\tingeso\tingesoMS_income\Repository\IncomeRepository.class
+com\tingeso\tingesoMS_income\Service\IncomeService.class
+com\tingeso\tingesoMS_income\TingesoMsIncomeApplication.class
+com\tingeso\tingesoMS_income\Entities\Income.class

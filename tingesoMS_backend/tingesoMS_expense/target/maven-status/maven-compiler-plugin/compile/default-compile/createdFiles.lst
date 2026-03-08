@@ -1,0 +1,5 @@
+com\tingeso\tingesoMS_expense\Entities\Expense.class
+com\tingeso\tingesoMS_expense\Repository\ExpenseRepository.class
+com\tingeso\tingesoMS_expense\Service\ExpenseService.class
+com\tingeso\tingesoMS_expense\TingesoMsExpenseApplication.class
+com\tingeso\tingesoMS_expense\Controller\ExpenseController.class

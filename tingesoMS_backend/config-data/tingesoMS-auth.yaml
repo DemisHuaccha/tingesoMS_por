@@ -1,0 +1,30 @@
+server:
+  # Permite que Kubernetes inyecte el puerto o use el 8080 por defecto
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: tingesoMS-auth
+  datasource:
+    # URL configurada para el host interno 'mysql-service' en Kubernetes
+    url: jdbc:mysql://${MYSQL_HOST:mysql-service}:3306/auth_db?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+    # Estas variables deben coincidir con las 'env' de tu deployment.yml
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always

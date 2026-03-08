@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tingeso-report
+spec:
+  selector:
+    matchLabels:
+      app: tingeso-report
+  template:
+    metadata:
+      labels:
+        app: tingeso-report
+    spec:
+      initContainers:
+        - name: wait-for-infrastructure
+          image: busybox
+          # Heurística 5: Prevención de errores. Espera a MySQL, Config Server y los servicios de datos.
+          command: ['sh', '-c', 'until nc -z mysql-service 3306 && nc -z config-service 8888 && nc -z tingeso-income-service 8080 && nc -z tingeso-expense-service 8080; do echo "Esperando infraestructura y servicios de datos..."; sleep 5; done;']
+      containers:
+        - name: tingeso-report
+          image: demishuaccha/tingeso-report-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:http://config-service:8888"
+
+            # Conexión a su propia base de datos (report_db)
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql-service:3306/report_db?createDatabaseIfNotExist=true"
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: user_report
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: pass_report
+
+            # Comunicación interna (Sin Eureka)
+            # Estas variables deben ser usadas en tu ReportService (@Value)
+            - name: INCOME_SERVICE_URL
+              value: "http://tingeso-income-service:8080/api/incomes"
+            - name: EXPENSE_SERVICE_URL
+              value: "http://tingeso-expense-service:8080/api/expenses"
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 70
+            periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 130
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tingeso-report-service
+spec:
+  selector:
+    app: tingeso-report
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: tingesoMS-income
+  cloud:
+    config:
+      # Cambiamos localhost por el nombre del Service en Kubernetes
+      uri: http://${CONFIG_SERVER_HOST:config-service}:8888
+      # Heurística 5: Prevención de errores (el servicio no sube sin su config)
+      fail-fast: true
+      retry:
+        # Heurística 9: Ayudar a recuperarse de errores (reintentos de conexión)
+        initial-interval: 3000
+        max-attempts: 6

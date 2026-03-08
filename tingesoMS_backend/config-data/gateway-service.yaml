@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_LAST
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+
+      routes:
+        # 1. AUTH SERVICE (Para guardar datos del token de Keycloak)
+        - id: auth-service
+          uri: http://tingeso-auth-service:8080
+          predicates:
+            - Path=/api/auth/**
+
+        # 2. INCOME SERVICE (Gestión de entradas de dinero)
+        - id: income-service
+          uri: http://tingeso-income-service:8080
+          predicates:
+            - Path=/api/incomes/**
+
+        # 3. EXPENSE SERVICE (Gestión de salidas de dinero)
+        - id: expense-service
+          uri: http://tingeso-expense-service:8080
+          predicates:
+            - Path=/api/expenses/**
+
+        # 4. REPORT SERVICE (Resumen de movimientos)
+        - id: report-service
+          uri: http://tingeso-report-service:8080
+          predicates:
+            - Path=/api/report/**

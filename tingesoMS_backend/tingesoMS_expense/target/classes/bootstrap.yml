@@ -1,0 +1,12 @@
+#spring:
+#  application:
+#    # Nombre exacto para vincular con tingesoMS_expense.yaml en GitHub
+#    name: tingesoMS-expense
+#  cloud:
+#    config:
+#      # Conexión al Config Server en el puerto 8888
+#      uri: http://${CONFIG_SERVER_HOST:localhost}:8888
+#      fail-fast: true
+#      retry:
+#        initial-interval: 2000
+#        max-attempts: 5

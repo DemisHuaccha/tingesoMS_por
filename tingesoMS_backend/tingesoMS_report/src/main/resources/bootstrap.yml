@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: tingesoMS-report
+  cloud:
+    config:
+      # Cambiamos localhost por el nombre del Service de K8s para resolución DNS interna
+      uri: http://${CONFIG_SERVER_HOST:config-service}:8888
+      # Heurística 5: El servicio no debe arrancar si la configuración crítica falla
+      fail-fast: true
+      retry:
+        # Heurística 9: Intervalos de reintento para tolerar tiempos de carga en Minikube
+        initial-interval: 3000
+        max-attempts: 6

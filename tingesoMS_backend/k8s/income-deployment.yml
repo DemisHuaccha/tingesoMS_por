@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tingeso-income
+spec:
+  selector:
+    matchLabels:
+      app: tingeso-income
+  template:
+    metadata:
+      labels:
+        app: tingeso-income
+    spec:
+      initContainers:
+        - name: wait-for-infrastructure
+          image: busybox
+          # Heurística 5: Prevención de errores. Espera a que la DB y el Config Server respondan.
+          command: ['sh', '-c', 'until nc -z mysql-service 3306 && nc -z config-service 8888; do echo "Esperando infraestructura..."; sleep 5; done;']
+      containers:
+        - name: tingeso-income
+          image: demishuaccha/tingeso-income-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080 # Puerto interno del contenedor
+          env:
+            - name: SERVER_PORT
+              value: "8080"
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:http://config-service:8888"
+            - name: MYSQL_HOST
+              value: "mysql-service"
+            # Credenciales desde Secrets para cumplir con seguridad y POO
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: user_income
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secrets
+                  key: pass_income
+            # URL de conexión a su propia base de datos MySQL
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql-service:3306/income_db?createDatabaseIfNotExist=true"
+
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 120
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tingeso-income-service
+spec:
+  selector:
+    app: tingeso-income
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

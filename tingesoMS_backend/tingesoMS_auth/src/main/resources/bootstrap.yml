@@ -1,0 +1,12 @@
+spring:
+  application:
+    name: tingesoMS-auth
+  cloud:
+    config:
+      uri: http://${CONFIG_SERVER_HOST:config-service}:8888
+      # Heurística 5: Prevención de errores. El servicio no sube si no tiene su configuración
+      fail-fast: true
+      retry:
+        # Heurística 9: Ayudar a recuperarse de errores (reintentos ante fallos de red)
+        initial-interval: 3000
+        max-attempts: 6

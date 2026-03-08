@@ -1,0 +1,39 @@
+server:
+  # Puerto estandarizado para la comunicación interna en el clúster
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: tingesoMS-report
+  datasource:
+    # Conexión a su propia base de datos (report_db)
+    url: jdbc:mysql://${MYSQL_HOST:mysql-service}:3306/report_db?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+    # Credenciales inyectadas desde el Secret de K8s
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+
+# CONFIGURACIÓN DE COMUNICACIÓN (Sin Eureka)
+# Estas variables permiten al RestTemplate llamar a los servicios internos
+income-service:
+  url: ${INCOME_SERVICE_URL:http://tingeso-income-service:8080}
+expense-service:
+  url: ${EXPENSE_SERVICE_URL:http://tingeso-expense-service:8080}
+
+# Heurística 1: Visibilidad del estado del sistema
+# Necesario para que las Probes de Kubernetes funcionen
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      show-details: always

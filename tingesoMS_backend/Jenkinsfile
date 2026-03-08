@@ -1,0 +1,113 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB_REPO = 'demishuaccha'
+        DOCKER_CREDENTIAL_ID = 'dockerhub-creds'
+        BASE_DIR = 'tingesoMS_por' // Nombre del repo actualizado
+        KUBECONFIG = 'C:/Users/demis/.kube/config'
+    }
+
+    stages {
+        stage('Login to Docker Hub') {
+            steps {
+                script {
+                    withCredentials([usernamePassword(credentialsId: env.DOCKER_CREDENTIAL_ID, usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        bat "docker login -u %USER% -p %PASS%"
+                    }
+                }
+            }
+        }
+
+        stage('Build and Push Microservices') {
+            parallel {
+                // Infraestructura Core
+                stage('Config Service') { steps { buildAndPush('config-service', 'config-service') } }
+                stage('Gateway Service') { steps { buildAndPush('gateway-service', 'gateway-service') } }
+
+                // Microservicios de Negocio (Caja Chica)
+                stage('Auth Service') { steps { buildAndPush('tingesoMS_auth', 'tingeso-auth-service') } }
+                stage('Income Service') { steps { buildAndPush('tingesoMS_income', 'tingeso-income-service') } }
+                stage('Expense Service') { steps { buildAndPush('tingesoMS_expense', 'tingeso-expense-service') } }
+                stage('Report Service') { steps { buildAndPush('tingesoMS_report', 'tingeso-report-service') } }
+            }
+        }
+
+        stage('Cleanup Old Apps') {
+            steps {
+                script {
+                    echo "--- Limpiando despliegues previos (Sin afectar DBs) ---"
+                    // Lista ajustada a tus servicios actuales
+                    def appsToClean = [
+                        'config-service', 'gateway-service', 'tingeso-auth',
+                        'tingeso-income', 'tingeso-expense', 'tingeso-report'
+                    ]
+
+                    appsToClean.each { name ->
+                        bat "kubectl delete deployment ${name} --ignore-not-found=true"
+                        bat "kubectl delete service ${name}-service --ignore-not-found=true"
+                    }
+                }
+            }
+        }
+
+        stage('Deploy Infrastructure') {
+            steps {
+                script {
+                    echo "--- Sincronizando MySQL y Persistencia ---"
+                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-pv.yml"
+                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-secrets.yml"
+                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-init-script.yml" // ¡Importante para las DBs!
+                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/mysql-deployment.yml"
+
+                    echo "Esperando a que MySQL esté listo..."
+                    bat "kubectl wait --for=condition=ready pod -l app=mysql-db --timeout=120s"
+                }
+            }
+        }
+
+        stage('Deploy Core Services') {
+            steps {
+                script {
+                    echo "--- Levantando Config Server (Sin Eureka) ---"
+                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/config-deployment.yml"
+                    bat "kubectl wait --for=condition=ready pod -l app=config-service --timeout=120s"
+                }
+            }
+        }
+
+        stage('Deploy Business Services') {
+            steps {
+                script {
+                    echo "--- Desplegando Microservicios de Negocio ---"
+                    // Despliegue secuencial de los archivos en la carpeta k8s
+                    def serviceFiles = ['auth', 'income', 'expense', 'report', 'gateway']
+                    serviceFiles.each { file ->
+                        bat "kubectl apply -f ${env.BASE_DIR}/k8s/${file}-deployment.yml"
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            script { bat 'docker logout' }
+        }
+        success {
+            echo "¡Pipeline exitoso! Sistema de Caja Chica desplegado en Minikube."
+        }
+    }
+}
+
+def buildAndPush(folderName, imageName) {
+    script {
+        def fullName = "${env.DOCKER_HUB_REPO}/${imageName}:latest"
+        def fullPath = "${env.BASE_DIR}/${folderName}"
+        dir(fullPath) {
+            bat "mvn clean package -DskipTests"
+            bat "docker build -t ${fullName} ."
+            bat "docker push ${fullName}"
+        }
+    }
+}

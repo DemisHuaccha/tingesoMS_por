@@ -1,0 +1,11 @@
+#spring:
+#  application:
+#    # Debe coincidir exactamente con tingesoMS_income.yaml en repo de GitHub
+#    name: tingesoMS-income
+#  cloud:
+#    config:
+#      uri: http://${CONFIG_SERVER_HOST:localhost}:8888
+#      fail-fast: true
+#      retry:
+#        initial-interval: 2000
+#        max-attempts: 5

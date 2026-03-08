@@ -1,0 +1,16 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: config-service
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/DemisHuaccha/tingesoMS_backend2025.git
+          default-label: main
+          # La ruta es relativa a la raíz del repositorio de GitHub
+          search-paths: tingesoMS_backend/config-data
+          clone-on-start: true
+

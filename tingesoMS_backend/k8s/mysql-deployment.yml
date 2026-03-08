@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql-db
+spec:
+  selector:
+    matchLabels:
+      app: mysql-db
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mysql-db
+    spec:
+      containers:
+        - image: mysql:8.0.44
+          name: mysql-db
+          env:
+            # Password de Root
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: password } }
+            # Variables para el script de inicialización
+            - name: USER_INCOME
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: user_income } }
+            - name: PASS_INCOME
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: pass_income } }
+            - name: USER_EXPENSE
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: user_expense } }
+            - name: PASS_EXPENSE
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: pass_expense } }
+            - name: USER_REPORT
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: user_report } }
+            - name: PASS_REPORT
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: pass_report } }
+            - name: USER_AUTH
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: user_auth } }
+            - name: PASS_AUTH
+              valueFrom: { secretKeyRef: { name: mysql-secrets, key: pass_auth } }
+          ports:
+            - containerPort: 3306
+              name: mysql
+          volumeMounts:
+            - name: mysql-init-script
+              mountPath: /docker-entrypoint-initdb.d
+            - name: mysql-persistent-storage
+              mountPath: /var/lib/mysql
+      volumes:
+        - name: mysql-init-script
+          configMap:
+            name: mysql-init-script
+            defaultMode: 0755 # Importante para que el .sh sea ejecutable
+        - name: mysql-persistent-storage
+          persistentVolumeClaim:
+            claimName: mysql-pv-claim
