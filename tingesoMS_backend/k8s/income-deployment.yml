@@ -14,7 +14,7 @@ spec:
       initContainers:
         - name: wait-for-infrastructure
           image: busybox
-          # Heurística 5: Sincronización de infraestructura.
+          # Heurística 5: Asegura que MySQL y Config Server respondan antes de iniciar.
           command: ['sh', '-c', 'until nc -z mysql-service 3306 && nc -z config-service 8888; do echo "Esperando infraestructura..."; sleep 5; done;']
       containers:
         - name: tingeso-income
@@ -23,6 +23,10 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            # CORRECCIÓN CRÍTICA: Forzamos la identidad para que pida tingesoMS-income.yaml
+            - name: SPRING_APPLICATION_NAME
+              value: "tingesoMS-income"
+
             - name: SERVER_PORT
               value: "8080"
             - name: SPRING_CONFIG_IMPORT
@@ -30,7 +34,7 @@ spec:
             - name: MYSQL_HOST
               value: "mysql-service"
 
-            # CORRECCIÓN: Nombres de variables mapeados a los placeholders del Config Server
+            # Mapeo de variables para los placeholders ${DB_USERNAME} y ${DB_PASSWORD}
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
