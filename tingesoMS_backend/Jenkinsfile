@@ -4,9 +4,9 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'demishuaccha'
         DOCKER_CREDENTIAL_ID = 'dockerhub-creds'
-        // CORRECCIÓN: Apuntamos a la subcarpeta real del repositorio
         BASE_DIR = 'tingesoMS_backend'
-        KUBECONFIG = 'C:/Users/demis/.kube/config'
+        // CORRECCIÓN: Usamos dobles barras para evitar problemas de escape en Windows
+        KUBECONFIG = 'C:\\Users\\demis\\.kube\\config'
     }
 
     stages {
@@ -22,7 +22,6 @@ pipeline {
 
         stage('Build and Push Microservices') {
             parallel {
-                // Solo los servicios necesarios para Caja Chica (Sin Eureka)
                 stage('Config Service') { steps { buildAndPush('config-service', 'config-service') } }
                 stage('Gateway Service') { steps { buildAndPush('gateway-service', 'gateway-service') } }
                 stage('Auth Service') { steps { buildAndPush('tingesoMS_auth', 'tingeso-auth-service') } }
@@ -35,20 +34,25 @@ pipeline {
         stage('Cleanup Old Apps') {
             steps {
                 script {
-                    echo "--- LIMPIEZA PROFUNDA AUTOMATIZADA (Heurística 5) ---"
+                    echo "--- LIMPIEZA PROFUNDA (Heurística 5) ---"
 
-                    // 1. Borramos los despliegues y servicios
-                    def apps = ['config-service', 'gateway-service', 'tingeso-auth', 'tingeso-income', 'tingeso-expense', 'tingeso-report', 'mysql-db']
-                    apps.each { name ->
+                    // 1. Borramos los despliegues usando sus nombres exactos
+                    def deployNames = ['config-service', 'gateway-service', 'tingeso-auth', 'tingeso-income', 'tingeso-expense', 'tingeso-report', 'mysql-service']
+                    deployNames.each { name ->
                         bat "kubectl --kubeconfig=%KUBECONFIG% delete deployment ${name} --ignore-not-found=true"
-                        bat "kubectl --kubeconfig=%KUBECONFIG% delete service ${name}-service --ignore-not-found=true"
                     }
 
-                    // 2. CORRECCIÓN CRÍTICA: Borrar el PVC para liberar el candado de InnoDB
-                    echo "Liberando volúmenes persistentes para evitar errores de bloqueo..."
-                    bat "kubectl --kubeconfig=%KUBECONFIG% delete pvc mysql-pvc --ignore-not-found=true"
+                    // 2. Borramos servicios (evitando el error de nombre duplicado '-service-service')
+                    def serviceNames = ['config-service', 'gateway-service', 'tingeso-auth-service', 'tingeso-income-service', 'tingeso-expense-service', 'tingeso-report-service', 'mysql-service']
+                    serviceNames.each { name ->
+                        bat "kubectl --kubeconfig=%KUBECONFIG% delete service ${name} --ignore-not-found=true"
+                    }
 
-                    // 3. Limpiar ConfigMaps viejos
+                    // 3. CORRECCIÓN: Borrar el PVC exacto según tu YAML (mysql-pv-claim)
+                    echo "Liberando el volumen persistente..."
+                    bat "kubectl --kubeconfig=%KUBECONFIG% delete pvc mysql-pv-claim --ignore-not-found=true"
+
+                    // 4. Limpiar ConfigMaps
                     bat "kubectl --kubeconfig=%KUBECONFIG% delete configmap config-repo --ignore-not-found=true"
                 }
             }
@@ -57,15 +61,14 @@ pipeline {
         stage('Deploy Infrastructure') {
             steps {
                 script {
-                    echo "--- Recreando Infraestructura desde Cero ---"
-                    // Al aplicar el PV y PVC de nuevo, Kubernetes entrega un volumen limpio (o refrescado)
+                    echo "--- Recreando Infraestructura ---"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% create configmap config-repo --from-file=%BASE_DIR%/config-data"
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-pv.yml"
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-secrets.yml"
-                    bat "kubectl --kubeconfig=%KUBECONFIG% create configmap config-repo --from-file=%BASE_DIR%/config-data"
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-init-script.yml"
                     bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/mysql-deployment.yml"
 
-                    echo "Esperando a que MySQL genere las nuevas bases de datos..."
+                    echo "Esperando a MySQL..."
                     bat "kubectl --kubeconfig=%KUBECONFIG% wait --for=condition=ready pod -l app=mysql-db --timeout=120s"
                 }
             }
@@ -75,8 +78,8 @@ pipeline {
             steps {
                 script {
                     echo "--- Levantando Config Server ---"
-                    bat "kubectl apply -f ${env.BASE_DIR}/k8s/config-deployment.yml"
-                    bat "kubectl wait --for=condition=ready pod -l app=config-service --timeout=120s"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/config-deployment.yml"
+                    bat "kubectl --kubeconfig=%KUBECONFIG% wait --for=condition=ready pod -l app=config-service --timeout=120s"
                 }
             }
         }
@@ -85,10 +88,9 @@ pipeline {
             steps {
                 script {
                     echo "--- Desplegando Lógica de Negocio ---"
-                    // Despliegue en orden de los manifiestos en k8s/
                     def serviceFiles = ['auth', 'income', 'expense', 'report', 'gateway']
                     serviceFiles.each { file ->
-                        bat "kubectl apply -f ${env.BASE_DIR}/k8s/${file}-deployment.yml"
+                        bat "kubectl --kubeconfig=%KUBECONFIG% apply -f %BASE_DIR%/k8s/${file}-deployment.yml"
                     }
                 }
             }
@@ -100,7 +102,7 @@ pipeline {
             script { bat 'docker logout' }
         }
         success {
-            echo "¡Pipeline exitoso! Todo desplegado en la ruta correcta."
+            echo "¡Pipeline exitoso! Sistema desplegado."
         }
     }
 }
@@ -108,7 +110,6 @@ pipeline {
 def buildAndPush(folderName, imageName) {
     script {
         def fullName = "${env.DOCKER_HUB_REPO}/${imageName}:latest"
-        // La ruta ahora será: tingesoMS_backend/carpeta_microservicio
         def fullPath = "${env.BASE_DIR}/${folderName}"
         dir(fullPath) {
             bat "mvn clean package -DskipTests"
