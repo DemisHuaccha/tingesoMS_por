@@ -14,7 +14,7 @@ spec:
       initContainers:
         - name: wait-for-infrastructure
           image: busybox
-          # Heurística 5: Prevención de errores. Asegura que MySQL y Config Server respondan antes de iniciar.
+          # Heurística 5: Asegura que la infraestructura base responda.
           command: ['sh', '-c', 'until nc -z mysql-service 3306 && nc -z config-service 8888; do echo "Esperando infraestructura..."; sleep 5; done;']
       containers:
         - name: tingeso-auth
@@ -28,19 +28,21 @@ spec:
             - name: SPRING_CONFIG_IMPORT
               value: "optional:configserver:http://config-service:8888"
 
-            # Configuración de base de datos específica (auth_db).
-            - name: SPRING_DATASOURCE_URL
-              value: "jdbc:mysql://mysql-service:3306/auth_db?createDatabaseIfNotExist=true"
-            - name: SPRING_DATASOURCE_USERNAME
+            # CORRECCIÓN: Nombres de variables alineados con los placeholders del Config Server
+            - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: mysql-secrets
                   key: user_auth
-            - name: SPRING_DATASOURCE_PASSWORD
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: mysql-secrets
                   key: pass_auth
+
+            # URL de conexión específica para auth_db
+            - name: SPRING_DATASOURCE_URL
+              value: "jdbc:mysql://mysql-service:3306/auth_db?createDatabaseIfNotExist=true"
 
           readinessProbe:
             httpGet:

@@ -14,7 +14,7 @@ spec:
       initContainers:
         - name: wait-for-infrastructure
           image: busybox
-          # Heurística 5: Prevención de errores. Asegura que el entorno esté listo.
+          # Heurística 5: Prevención de errores. Espera a que MySQL y Config Server respondan.
           command: ['sh', '-c', 'until nc -z mysql-service 3306 && nc -z config-service 8888; do echo "Esperando infraestructura..."; sleep 5; done;']
       containers:
         - name: tingeso-expense
@@ -29,18 +29,22 @@ spec:
               value: "optional:configserver:http://config-service:8888"
             - name: MYSQL_HOST
               value: "mysql-service"
-            # Mapeo de credenciales desde el Secret de MySQL
-            - name: SPRING_DATASOURCE_USERNAME
+
+            # CORRECCIÓN CLAVE: El nombre debe ser DB_USERNAME para que Spring reemplace el ${DB_USERNAME} del .yaml
+            - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: mysql-secrets
                   key: user_expense
-            - name: SPRING_DATASOURCE_PASSWORD
+
+            # CORRECCIÓN CLAVE: El nombre debe ser DB_PASSWORD para el placeholder ${DB_PASSWORD}
+            - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: mysql-secrets
                   key: pass_expense
-            # URL de conexión exclusiva para la base de datos de egresos
+
+            # URL de conexión (Asegúrate de que en el .yaml no estés usando otro placeholder para la URL)
             - name: SPRING_DATASOURCE_URL
               value: "jdbc:mysql://mysql-service:3306/expense_db?createDatabaseIfNotExist=true"
 
