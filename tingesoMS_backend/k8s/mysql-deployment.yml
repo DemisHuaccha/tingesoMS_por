@@ -49,7 +49,20 @@ spec:
         - name: mysql-init-script
           configMap:
             name: mysql-init-script
-            defaultMode: 0755 # Importante para que el .sh sea ejecutable
+            defaultMode: 0755
         - name: mysql-persistent-storage
           persistentVolumeClaim:
             claimName: mysql-pv-claim
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql-service # ESTA ES LA PIEZA QUE FALTABA PARA EL DNS
+spec:
+  selector:
+    app: mysql-db # Mapea directamente al Deployment de arriba
+  ports:
+    - protocol: TCP
+      port: 3306
+      targetPort: 3306
+  type: ClusterIP
