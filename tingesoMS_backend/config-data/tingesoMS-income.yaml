@@ -4,11 +4,12 @@ server:
 
 spring:
   application:
-    name: tingesoMS-report
+    # CORRECCIÓN: Identidad propia para el microservicio de ingresos
+    name: tingesoMS-income
   datasource:
-    # Conexión a su propia base de datos (report_db)
-    url: jdbc:mysql://${MYSQL_HOST:mysql-service}:3306/report_db?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
-    # Credenciales inyectadas desde el Secret de K8s
+    # CORRECCIÓN: Apuntar a income_db en lugar de report_db
+    url: jdbc:mysql://${MYSQL_HOST:mysql-service}:3306/income_db?createDatabaseIfNotExist=true&allowPublicKeyRetrieval=true&useSSL=false
+    # Credenciales inyectadas desde el Secret de K8s (vía Deployment)
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -20,15 +21,10 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
 
-# CONFIGURACIÓN DE COMUNICACIÓN (Sin Eureka)
-# Estas variables permiten al RestTemplate llamar a los servicios internos
-income-service:
-  url: ${INCOME_SERVICE_URL:http://tingeso-income-service:8080}
-expense-service:
-  url: ${EXPENSE_SERVICE_URL:http://tingeso-expense-service:8080}
+# NOTA: Los bloques 'income-service' y 'expense-service' se eliminan aquí
+# porque solo el microservicio de REPORT los necesita para consultar a los demás.
 
 # Heurística 1: Visibilidad del estado del sistema
-# Necesario para que las Probes de Kubernetes funcionen
 management:
   endpoints:
     web:
