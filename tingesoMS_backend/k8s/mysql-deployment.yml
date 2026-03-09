@@ -57,10 +57,10 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: mysql-service # ESTA ES LA PIEZA QUE FALTABA PARA EL DNS
+  name: mysql-service
 spec:
   selector:
-    app: mysql-db # Mapea directamente al Deployment de arriba
+    app: mysql-db
   ports:
     - protocol: TCP
       port: 3306
